@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "563826779450",
+    "project_id": "warble-social-media",
+    "storage_bucket": "warble-social-media.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563826779450:android:9e7362db55fdb001475c03",
+        "android_client_info": {
+          "package_name": "com.example.warble_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNLZ0SCJLy3E1omh_0WNnue1YCUESA2r0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563826779450:android:320852f1a58fadaa475c03",
+        "android_client_info": {
+          "package_name": "com.example.warble_social_media"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNLZ0SCJLy3E1omh_0WNnue1YCUESA2r0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
