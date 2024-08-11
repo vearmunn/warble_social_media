@@ -25,6 +25,8 @@ class _HomepageState extends State<Homepage> {
   @override
   void initState() {
     c.getAllPosts();
+    c.getAllComments();
+
     c.getUserInfo(_auth.getCurrentUserID());
     super.initState();
   }
@@ -51,17 +53,19 @@ class _HomepageState extends State<Homepage> {
                     itemCount: c.allPosts.length,
                     itemBuilder: (BuildContext context, int index) {
                       return PostTile(
-                        name: c.allPosts[index].name,
-                        username: c.allPosts[index].username,
-                        post: c.allPosts[index].message,
-                        onUserTap: () {
-                          c.getUserInfo(c.allPosts[index].uid);
-                          // c.getAllUserPosts(c.allPosts[index].uid);
-                          Get.to(() => const ProfilePage());
-                        },
-                        onPostTap: () =>
-                            Get.to(() => ViewPostPage(post: c.allPosts[index])),
-                      );
+                          post: c.allPosts[index],
+                          commentCounter: c
+                              .specificPostsComments[c.allPosts[index].id]!
+                              .length,
+                          onUserTap: () {
+                            c.getUserInfo(c.allPosts[index].uid);
+                            // c.getAllUserPosts(c.allPosts[index].uid);
+                            Get.to(() => const ProfilePage());
+                          },
+                          onPostTap: () {
+                            // c.getSpecificCommentsofPost(c.allPosts[index].id);
+                            Get.to(() => ViewPostPage(post: c.allPosts[index]));
+                          });
                     },
                   ),
       ),

@@ -19,10 +19,14 @@ class MyDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          const DrawerHeader(
-              child: Icon(
-            Icons.podcasts,
-            size: 50,
+          DrawerHeader(
+              child: SizedBox(
+            width: 50,
+            height: 50,
+            child: Image.asset(
+              'assets/images/dove.png',
+              color: Colors.black87,
+            ),
           )),
           verticalSpacer(30),
           ListTile(

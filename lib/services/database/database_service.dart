@@ -12,6 +12,7 @@ this class handles:
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:warble_social_media/models/comment.dart';
 import 'package:warble_social_media/models/posts.dart';
 import 'package:warble_social_media/models/user_profile.dart';
 
@@ -81,6 +82,13 @@ class DatabaseService {
   }
 
   // DELETE A POST
+  Future deletePost(String id) async {
+    try {
+      await _firestore.collection('Posts').doc(id).delete();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
 
   // GET ALL POSTS
   Future<List<Posts>> getAllPosts() async {
@@ -94,6 +102,184 @@ class DatabaseService {
       throw Exception(e);
     }
   }
+
+  // TOOGLE LIKE
+  Future toogleLike(String postID) async {
+    try {
+      String uid = _auth.currentUser!.uid;
+
+      // go to doc for this post
+      DocumentReference postDoc = _firestore.collection('Posts').doc(postID);
+
+      // execute like
+      await _firestore.runTransaction((transaction) async {
+        // get post data
+        DocumentSnapshot postSnapshot = await transaction.get(postDoc);
+
+        // get like of users who like this post
+        List<String> likedBy = List<String>.from(postSnapshot['likedBy'] ?? []);
+
+        // get like count
+        int currentLikeCount = postSnapshot['likeCount'];
+
+        // if user has not liked this post yet -> then like | if user has liked this post -> then unlike
+        if (!likedBy.contains(uid)) {
+          likedBy.add(uid);
+          currentLikeCount++;
+        } else {
+          likedBy.remove(uid);
+          currentLikeCount--;
+        }
+
+        // update in firebase
+        transaction.update(
+            postDoc, {'likedBy': likedBy, 'likeCount': currentLikeCount});
+      });
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  Future addComment(String postID, String message) async {
+    try {
+      String uid = _auth.currentUser!.uid;
+      UserProfile user = await getUserInfo(uid);
+
+      Comment newComment = Comment(
+          id: '',
+          postId: postID,
+          uid: uid,
+          message: message,
+          name: user.name,
+          username: user.username,
+          timestamp: Timestamp.now());
+      await _firestore.collection('Comments').add(newComment.toMap());
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  Future<List<Comment>> getComments() async {
+    try {
+      final res = await _firestore.collection('Comments').get();
+      return res.docs.map((doc) => Comment.fromDocument(doc)).toList();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // DELETE A POST
+  Future deleteComment(String id) async {
+    try {
+      await _firestore.collection('Comments').doc(id).delete();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // REPORT USER
+  Future reportUser(String userID, String postID, String commentID) async {
+    String uid = _auth.currentUser!.uid;
+    try {
+      final newReport = {
+        'reportedBy': uid,
+        'userId': userID,
+        'postId': postID,
+        'commentId': commentID,
+        'timestamp': FieldValue.serverTimestamp()
+      };
+
+      await _firestore.collection('Reports').add(newReport);
+    } catch (e) {
+      print('REPORT ERROR$e');
+      throw Exception(e);
+    }
+  }
+
+  // BLOCK USER
+  Future blockUser(String uid) async {
+    String currentUid = _auth.currentUser!.uid;
+    try {
+      await _firestore
+          .collection('Users')
+          .doc(currentUid)
+          .collection('BlockedUsers')
+          .doc(uid)
+          .set({});
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // UNBLOCK USER
+  Future unblockUser(String uid) async {
+    String currentUid = _auth.currentUser!.uid;
+    try {
+      await _firestore
+          .collection('Users')
+          .doc(currentUid)
+          .collection('BlockedUsers')
+          .doc(uid)
+          .delete();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // GET LIST OF BLOCKED USER IDs
+  Future<List<String>> getListBlockedUserIds() async {
+    String currentUid = _auth.currentUser!.uid;
+    try {
+      final res = await _firestore
+          .collection('Users')
+          .doc(currentUid)
+          .collection('BlockedUsers')
+          .get();
+      return res.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // GET LIST OF BLOCKED USER IDs
+  // Future<List<UserProfile>> getBlockedUsersData(
+  //     List<String> blockedUserIds) async {
+  //   String currentUid = _auth.currentUser!.uid;
+  //   try {
+  //     final res = await _firestore
+  //         .collection('Users')
+  //         .where("uid", whereIn: );
+
+  //     // return res.docs.map((doc) => doc.id).toList();
+  //   } catch (e) {
+  //     throw Exception(e);
+  //   }
+  // }
+
+  // LIKE A POST
+  // Future likePost(postID) async {
+  //   String uid = _auth.currentUser!.uid;
+  //   try {
+  //     final res = await _firestore.collection('Posts').doc(postID).get();
+  //     List<String> likedByList =
+  //         List<String>.from(res.data()!['likedBy'] ?? []);
+
+  //     if (likedByList.contains(uid)) {
+  //       likedByList.remove(uid);
+  //     } else {
+  //       likedByList.add(uid);
+  //     }
+
+  //     await _firestore
+  //         .collection('Posts')
+  //         .doc(postID)
+  //         .update({'likedBy': likedByList});
+  //     await getAllPosts();
+  //     print(likedByList);
+  //   } catch (e) {
+  //     throw Exception(e);
+  //   }
+  // }
 
   //GET A POST
 }
