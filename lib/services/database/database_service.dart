@@ -241,45 +241,103 @@ class DatabaseService {
     }
   }
 
-  // GET LIST OF BLOCKED USER IDs
-  // Future<List<UserProfile>> getBlockedUsersData(
-  //     List<String> blockedUserIds) async {
-  //   String currentUid = _auth.currentUser!.uid;
-  //   try {
-  //     final res = await _firestore
-  //         .collection('Users')
-  //         .where("uid", whereIn: );
+  /* 
+  
+  FOLLOW
+  
+  */
 
-  //     // return res.docs.map((doc) => doc.id).toList();
-  //   } catch (e) {
-  //     throw Exception(e);
-  //   }
-  // }
+  // Follow User
+  Future followUser(String uid) async {
+    final currentUserId = _auth.currentUser!.uid;
 
-  // LIKE A POST
-  // Future likePost(postID) async {
-  //   String uid = _auth.currentUser!.uid;
-  //   try {
-  //     final res = await _firestore.collection('Posts').doc(postID).get();
-  //     List<String> likedByList =
-  //         List<String>.from(res.data()!['likedBy'] ?? []);
+    try {
+      // add target user to the current user's following
+      await _firestore
+          .collection('Users')
+          .doc(currentUserId)
+          .collection('Following')
+          .doc(uid)
+          .set({});
 
-  //     if (likedByList.contains(uid)) {
-  //       likedByList.remove(uid);
-  //     } else {
-  //       likedByList.add(uid);
-  //     }
+      // add current user to the target user's followers
+      await _firestore
+          .collection('Users')
+          .doc(uid)
+          .collection('Followers')
+          .doc(currentUserId)
+          .set({});
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
 
-  //     await _firestore
-  //         .collection('Posts')
-  //         .doc(postID)
-  //         .update({'likedBy': likedByList});
-  //     await getAllPosts();
-  //     print(likedByList);
-  //   } catch (e) {
-  //     throw Exception(e);
-  //   }
-  // }
+  // Unfollow User
+  Future unfollowUser(String uid) async {
+    final currentUserId = _auth.currentUser!.uid;
 
-  //GET A POST
+    try {
+      // remove target user from the current user's following
+      _firestore
+          .collection('Users')
+          .doc(currentUserId)
+          .collection('Following')
+          .doc(uid)
+          .delete();
+
+      // remove current user from the target user's followers
+      _firestore
+          .collection('Users')
+          .doc(uid)
+          .collection('Followers')
+          .doc(currentUserId)
+          .delete();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // Get a user's followers: list of uids
+  Future<List<String>> getUsersFollowerUids(String uid) async {
+    try {
+      final res = await _firestore
+          .collection('Users')
+          .doc(uid)
+          .collection('Followers')
+          .get();
+      return res.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // Get a user's following: list of uids
+  Future<List<String>> getUserFollowingUids(String uid) async {
+    try {
+      final res = await _firestore
+          .collection('Users')
+          .doc(uid)
+          .collection('Following')
+          .get();
+      return res.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      throw Exception(e);
+    }
+  }
+
+  // SEARCH
+
+  Future<List<UserProfile>> searchUsers(String searchTerm) async {
+    try {
+      final res = await _firestore
+          .collection('Users')
+          .where('username', isGreaterThanOrEqualTo: searchTerm)
+          .where('username', isLessThanOrEqualTo: '$searchTerm\uf8ff')
+          .get();
+
+      return res.docs.map((doc) => UserProfile.fromDocument(doc)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
 }

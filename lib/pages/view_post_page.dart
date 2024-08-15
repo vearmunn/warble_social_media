@@ -44,6 +44,8 @@ class ViewPostPage extends StatelessWidget {
               onUserTap: () {
                 c.getUserInfo(post.uid);
                 c.getAllUserPosts(post.uid);
+                c.getFollowers(post.uid);
+                c.getFollowing(post.uid);
                 Get.to(() => const ProfilePage());
               }),
           Text(

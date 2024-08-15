@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:warble_social_media/controllers/database_controller.dart';
 import 'package:warble_social_media/pages/profile_page.dart';
+import 'package:warble_social_media/pages/search_page.dart';
 import 'package:warble_social_media/pages/settings_page.dart';
 import 'package:warble_social_media/services/auth/auth_service.dart';
 import 'package:warble_social_media/utils/spacer.dart';
@@ -48,8 +49,19 @@ class MyDrawer extends StatelessWidget {
             onTap: () {
               Get.back();
               dbc.getUserInfo(auth.getCurrentUserID());
+              dbc.getFollowers(auth.getCurrentUserID());
+              dbc.getFollowing(auth.getCurrentUserID());
               // dbc.getAllUserPosts(auth.getCurrentUserID());
               Get.to(() => const ProfilePage());
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.search),
+            title: const Text('S E A R C H'),
+            onTap: () {
+              Get.back();
+
+              Get.to(() => const SearchPage());
             },
           ),
           const Spacer(),

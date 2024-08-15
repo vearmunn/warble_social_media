@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:warble_social_media/controllers/database_controller.dart';
+import 'package:warble_social_media/models/posts.dart';
 import 'package:warble_social_media/pages/profile_page.dart';
 import 'package:warble_social_media/pages/view_post_page.dart';
 import 'package:warble_social_media/services/auth/auth_service.dart';
@@ -33,62 +34,105 @@ class _HomepageState extends State<Homepage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: extraLightGrey,
+          title: const Text(
+            'W A R B L E',
+          ),
+          centerTitle: true,
+          bottom: const TabBar(
+            tabs: [
+              Tab(
+                text: 'For You',
+              ),
+              Tab(
+                text: 'Following',
+              ),
+            ],
+          ),
+          actions: [
+            IconButton(
+                onPressed: () {
+                  c.searchUsers('jo');
+                  print(c.searchResults);
+                },
+                icon: const Icon(Icons.search))
+          ],
+        ),
+        drawer: const MyDrawer(),
         backgroundColor: extraLightGrey,
-        title: const Text(
-          'W A R B L E',
+        body: TabBarView(
+          children: [
+            _buildPostList(
+                databaseController: c,
+                list: c.allPosts,
+                emptyListMesage: 'No Posts'),
+            _buildPostList(
+                databaseController: c,
+                list: c.allFollowingPosts,
+                emptyListMesage: 'No Posts'),
+          ],
         ),
-        centerTitle: true,
-      ),
-      drawer: const MyDrawer(),
-      backgroundColor: extraLightGrey,
-      body: Obx(
-        () => c.isLoading.value
-            ? const Center(child: CircularProgressIndicator())
-            : c.allPosts.isEmpty
-                ? const Center(child: Text('No Posts'))
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    itemCount: c.allPosts.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      return PostTile(
-                          post: c.allPosts[index],
-                          commentCounter: c
-                              .specificPostsComments[c.allPosts[index].id]!
-                              .length,
-                          onUserTap: () {
-                            c.getUserInfo(c.allPosts[index].uid);
-                            // c.getAllUserPosts(c.allPosts[index].uid);
-                            Get.to(() => const ProfilePage());
-                          },
-                          onPostTap: () {
-                            // c.getSpecificCommentsofPost(c.allPosts[index].id);
-                            Get.to(() => ViewPostPage(post: c.allPosts[index]));
-                          });
-                    },
-                  ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        shape: const CircleBorder(),
-        backgroundColor: mainBlue,
-        child: const Icon(
-          Icons.add,
-          color: Colors.white,
-        ),
-        onPressed: () => showDialog(
-          context: context,
-          builder: (context) => CustomAlertDialog(
-              hint: "What's on your mind ?",
-              onPressedText: 'Post',
-              onTap: () {
-                Navigator.pop(context);
-                c.addPost(postController.text);
-                postController.clear();
-              },
-              controller: postController),
+        floatingActionButton: FloatingActionButton(
+          shape: const CircleBorder(),
+          backgroundColor: mainBlue,
+          child: const Icon(
+            Icons.add,
+            color: Colors.white,
+          ),
+          onPressed: () => showDialog(
+            context: context,
+            builder: (context) => CustomAlertDialog(
+                hint: "What's on your mind ?",
+                onPressedText: 'Post',
+                onTap: () {
+                  Navigator.pop(context);
+                  c.addPost(postController.text);
+                  postController.clear();
+                },
+                controller: postController),
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildPostList(
+      {required DatabaseController databaseController,
+      required RxList<Posts> list,
+      required String emptyListMesage}) {
+    return Obx(() {
+      if (databaseController.isLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      } else if (databaseController.errMessage.value != '') {
+        return Center(child: Text(databaseController.errMessage.value));
+      } else if (list.isEmpty) {
+        return Center(child: Text(emptyListMesage));
+      } else {
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          itemCount: list.length,
+          itemBuilder: (BuildContext context, int index) {
+            return PostTile(
+                post: list[index],
+                commentCounter: c.specificPostsComments[list[index].id]!.length,
+                onUserTap: () {
+                  c.getUserInfo(list[index].uid);
+                  c.getFollowers(list[index].uid);
+                  c.getFollowing(list[index].uid);
+                  // c.getAllUserPosts(c.allPosts[index].uid);
+                  Get.to(() => const ProfilePage());
+                },
+                onPostTap: () {
+                  // c.getSpecificCommentsofPost(c.allPosts[index].id);
+                  Get.to(() => ViewPostPage(post: list[index]));
+                });
+          },
+        );
+      }
+    });
   }
 }

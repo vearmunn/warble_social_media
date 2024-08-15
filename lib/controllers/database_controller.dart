@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+import 'package:get/get_rx/get_rx.dart';
+import 'package:get/get_rx/src/rx_types/rx_types.dart';
 import 'package:warble_social_media/models/comment.dart';
 import 'package:warble_social_media/models/user_profile.dart';
 
@@ -7,14 +9,17 @@ import '../services/auth/auth_service.dart';
 import '../services/database/database_service.dart';
 
 class DatabaseController extends GetxController {
+// VARIABLES ----------------------------------------------------------------------
   final _auth = AuthService();
   final _db = DatabaseService();
 
   var isLoading = false.obs;
+  var errMessage = ''.obs;
   Rx<UserProfile> userInfo =
       UserProfile(bio: '', email: '', name: '', uid: '', username: '').obs;
   RxList<Posts> allPosts = <Posts>[].obs;
   RxList<Posts> allUserPosts = <Posts>[].obs;
+  RxList<Posts> allFollowingPosts = <Posts>[].obs;
 
   // local list to track posts liked by current user
   RxList<String> likedPosts = <String>[].obs;
@@ -29,11 +34,25 @@ class DatabaseController extends GetxController {
   RxList<String> blockedUserIds = <String>[].obs;
   RxList<UserProfile> blockedUserList = <UserProfile>[].obs;
 
+  RxMap<String, List<String>> followers = <String, List<String>>{}.obs;
+  RxMap<String, List<String>> following = <String, List<String>>{}.obs;
+  RxMap<String, int> followersCount = <String, int>{}.obs;
+  RxMap<String, int> followingCount = <String, int>{}.obs;
+  RxBool isFollowing = false.obs;
+  RxList<UserProfile> followerProfiles = <UserProfile>[].obs;
+  RxList<UserProfile> followingProfiles = <UserProfile>[].obs;
+
+  RxList<UserProfile> searchResults = <UserProfile>[].obs;
+  RxBool isSearching = false.obs;
+
+// METHODS ----------------------------------------------------------------------
   Future getUserInfo(String uid) async {
     try {
       isLoading.value = true;
       final res = await _db.getUserInfo(uid);
       userInfo.value = res;
+      await getFollowers(uid);
+      await getFollowing(uid);
       getAllUserPosts(uid);
     } catch (e) {
       Get.snackbar('Error', e.toString());
@@ -94,6 +113,9 @@ class DatabaseController extends GetxController {
       allPosts.value =
           allPosts.where((post) => !blockedUserIds.contains(post.uid)).toList();
 
+      // get following posts
+      await getAllFollowingPosts();
+
       // get current user posts
       getAllUserPosts(_auth.getCurrentUserID());
 
@@ -107,6 +129,16 @@ class DatabaseController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future getAllFollowingPosts() async {
+    final currentUid = _auth.getCurrentUserID();
+    isLoading.value = true;
+    final followinguids = await _db.getUserFollowingUids(currentUid);
+    allFollowingPosts.value = allPosts
+        .where((post) =>
+            followinguids.contains(post.uid) || post.uid == currentUid)
+        .toList();
   }
 
   void getAllUserPosts(String uid) {
@@ -289,6 +321,229 @@ class DatabaseController extends GetxController {
       Get.snackbar('Success', '$name is unblocked!');
     } catch (e) {
       Get.snackbar('Error', e.toString());
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /*
+  
+  FOLLOW
+  
+  */
+
+  // get counts for followers & following locally: fiven a uid
+  int getFollowerCount(String uid) => followersCount[uid] ?? 0;
+  int getFollowingCount(String uid) => followingCount[uid] ?? 0;
+
+  // load followers
+  Future getFollowers(String uid) async {
+    try {
+      final currentUserID = _auth.getCurrentUserID();
+      isLoading.value = true;
+
+      // get the list of follower uids from firebase
+      final res = await _db.getUsersFollowerUids(uid);
+
+      // update local data
+      followers[uid] = res;
+      followersCount[uid] = res.length;
+      isFollowing.value = followers[uid]!.contains(currentUserID);
+    } catch (e) {
+      Get.snackbar('Error', e.toString());
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // load following
+  Future getFollowing(String uid) async {
+    try {
+      isLoading.value = true;
+
+      // get the list of following uids from firebase
+      final res = await _db.getUserFollowingUids(uid);
+
+      // update local data
+      following[uid] = res;
+      followingCount[uid] = res.length;
+    } catch (e) {
+      Get.snackbar('Error', e.toString());
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // follow user
+  Future followUser(String targetUid) async {
+    // get current uid
+    final currentUid = _auth.getCurrentUserID();
+
+    // initilize with empty list if null
+    followers.putIfAbsent(currentUid, () => []);
+    following.putIfAbsent(currentUid, () => []);
+
+    /*
+   
+    optimistic UI changes : Update the local data & revert back if database request fails
+   
+    */
+
+    // follow if current user is not one of the target user's followers
+    if (!followers[targetUid]!.contains(currentUid)) {
+      // add current user to target user's follower list
+      followers[targetUid]?.add(currentUid);
+
+      // update follower count
+      followersCount[targetUid] = (followersCount[targetUid] ?? 0) + 1;
+
+      // add target user to current user's following list
+      following[currentUid]?.add(targetUid);
+
+      // update following count
+      followingCount[currentUid] = (followingCount[currentUid] ?? 0) + 1;
+
+      isFollowing.value = true;
+    }
+
+    /* 
+    
+     UI has been optimistically updated above with local data.
+     Now let's try to make this request to our database
+    
+    */
+
+    try {
+      await _db.followUser(targetUid);
+      await _db.getUsersFollowerUids(currentUid);
+      await _db.getUserFollowingUids(currentUid);
+    }
+
+    // if there is an error... revert back to original
+    catch (e) {
+      // remove current user from target user's followers
+      followers[targetUid]?.remove(currentUid);
+
+      // update follower count
+      followersCount[targetUid] = (followersCount[targetUid] ?? 0) - 1;
+
+      // remove target user from current user's following
+      following[currentUid]?.remove(targetUid);
+
+      // update following count
+      followingCount[currentUid] = (followingCount[currentUid] ?? 0) - 1;
+    }
+  }
+
+  // unfollow user
+  Future unfollowUser(String targetUid) async {
+    // get current uid
+    final currentUid = _auth.getCurrentUserID();
+
+    // initilize with empty list if null
+    followers.putIfAbsent(currentUid, () => []);
+    following.putIfAbsent(currentUid, () => []);
+
+    /*
+   
+    optimistic UI changes : Update the local data & revert back if database request fails
+   
+    */
+
+    // unfollow if the current user is following the target user
+    if (followers[targetUid]!.contains(currentUid)) {
+      // remove current user to target user's follower list
+      followers[targetUid]?.remove(currentUid);
+
+      // update follower count
+      followersCount[targetUid] = (followersCount[targetUid] ?? 0) - 1;
+
+      // remove target user to current user's following list
+      following[currentUid]?.remove(targetUid);
+
+      // update following count
+      followingCount[currentUid] = (followingCount[currentUid] ?? 0) - 1;
+
+      isFollowing.value = false;
+    }
+
+    /* 
+    
+     UI has been optimistically updated above with local data.
+     Now let's try to make this request to our database
+    
+    */
+
+    try {
+      await _db.unfollowUser(targetUid);
+      await _db.getUsersFollowerUids(currentUid);
+      await _db.getUserFollowingUids(currentUid);
+    }
+
+    // if there is an error... revert back to original
+    catch (e) {
+      // add current user from target user's followers
+      followers[targetUid]?.add(currentUid);
+
+      // update follower count
+      followersCount[targetUid] = (followersCount[targetUid] ?? 0) + 1;
+
+      // add target user from current user's following
+      following[currentUid]?.add(targetUid);
+
+      // update following count
+      followingCount[currentUid] = (followingCount[currentUid] ?? 0) + 1;
+    }
+  }
+
+  // is current user following target user?
+  // RxBool isFollowing(String uid) {
+  //   final currentUid = _auth.getCurrentUserID();
+  //   return followers[uid]?.contains(currentUid) ?? false;
+  // }
+
+  Future loadFollowerPorfiles(String uid) async {
+    followerProfiles.clear();
+    try {
+      isLoading.value = true;
+      for (var followerId in followers[uid]!) {
+        UserProfile? followerProfile = await _db.getUserInfo(followerId);
+        followerProfiles.add(followerProfile);
+      }
+    } catch (e) {
+      isLoading.value = false;
+      errMessage.value = e.toString();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future loadFollowingPorfiles(String uid) async {
+    followingProfiles.clear();
+    try {
+      isLoading.value = true;
+      for (var followingId in following[uid]!) {
+        UserProfile? followingProfile = await _db.getUserInfo(followingId);
+        followingProfiles.add(followingProfile);
+      }
+    } catch (e) {
+      isLoading.value = false;
+      errMessage.value = e.toString();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future searchUsers(String searchTerm) async {
+    try {
+      isSearching.value = true;
+      isLoading.value = true;
+      final res = await _db.searchUsers(searchTerm);
+      searchResults.value = res;
+    } catch (e) {
+      isLoading.value = false;
+      errMessage.value = e.toString();
+      searchResults.value = [];
     } finally {
       isLoading.value = false;
     }

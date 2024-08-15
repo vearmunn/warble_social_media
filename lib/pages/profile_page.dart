@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:warble_social_media/controllers/database_controller.dart';
+import 'package:warble_social_media/pages/follow_list_page.dart';
 import 'package:warble_social_media/services/auth/auth_service.dart';
 import 'package:warble_social_media/utils/custom_alert_dialog.dart';
 import 'package:warble_social_media/utils/spacer.dart';
+import 'package:warble_social_media/widgets/my_button.dart';
 
 import '../themes/colors.dart';
 import '../widgets/post_tile.dart';
@@ -86,17 +88,22 @@ class _ProfilePageState extends State<ProfilePage> {
             padding: const EdgeInsets.all(16),
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(10)),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // BACK BUTTON AND MORE BUTTON ---------------------------------------------------------------
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         GestureDetector(
-                          onTap: () => Get.back(),
+                          onTap: () {
+                            c.getAllPosts();
+                            Get.back();
+                          },
                           child: const Icon(Icons.arrow_back),
                         ),
                         GestureDetector(
@@ -104,34 +111,122 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: const Icon(Icons.more_horiz)),
                       ],
                     ),
-                    CircleAvatar(
-                      backgroundColor: mainBlue,
-                      radius: 50,
-                      child: const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 55,
-                      ),
+
+                    // AVATAR, FOLLOWERS, FOLLOWING ---------------------------------------------------------------------
+                    verticalSpacer(16),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: mainBlue,
+                          radius: 50,
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 55,
+                          ),
+                        ),
+                        horizontalSpacer(16),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Obx(
+                                () => Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () {
+                                        c.loadFollowerPorfiles(
+                                            c.userInfo.value.uid);
+                                        c.loadFollowingPorfiles(
+                                            c.userInfo.value.uid);
+                                        Get.to(() => const FollowListPage(
+                                              initIndex: 0,
+                                            ));
+                                      },
+                                      child: UserInfo(
+                                        count: c.isLoading.value
+                                            ? '...'
+                                            : c.followersCount[
+                                                    c.userInfo.value.uid]
+                                                .toString(),
+                                        label: 'Followers',
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        c.loadFollowerPorfiles(
+                                            c.userInfo.value.uid);
+                                        c.loadFollowingPorfiles(
+                                            c.userInfo.value.uid);
+                                        Get.to(() => const FollowListPage(
+                                              initIndex: 1,
+                                            ));
+                                      },
+                                      child: UserInfo(
+                                        count: c.isLoading.value
+                                            ? '...'
+                                            : c.followingCount[
+                                                    c.userInfo.value.uid]
+                                                .toString(),
+                                        label: 'Following',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              verticalSpacer(16),
+                              Obx(
+                                () => c.isLoading.value
+                                    ? const SizedBox.shrink()
+                                    : c.userInfo.value.uid == currentUid
+                                        ? verticalSpacer(0)
+                                        : MyButton(
+                                            text: c.isFollowing.value
+                                                ? 'Unfollow'
+                                                : 'Follow',
+                                            onTap: () {
+                                              // c.getIsFollowing(
+                                              //     c.userInfo.value.uid);
+                                              if (c.isFollowing.value) {
+                                                c.unfollowUser(
+                                                    c.userInfo.value.uid);
+                                              } else {
+                                                c.followUser(
+                                                    c.userInfo.value.uid);
+                                              }
+                                            },
+                                            padding: 8,
+                                            textColor: mainBlue,
+                                            bgColor: const Color.fromARGB(
+                                                104, 155, 187, 212),
+                                          ),
+                              )
+                            ],
+                          ),
+                        )
+                      ],
                     ),
+
+                    // NAME AND USERNAME ---------------------------------------------------------------
                     verticalSpacer(16),
                     Obx(() => c.isLoading.value
                         ? const Text('...')
-                        : Center(
-                            child: Text(
+                        : Text(
                             c.userInfo.value.name,
                             style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold),
-                          ))),
-                    Center(
-                        child: Obx(
+                                fontSize: 20, fontWeight: FontWeight.bold),
+                          )),
+                    Obx(
                       () => c.isLoading.value
                           ? const Text('...')
                           : Text(
                               '@${c.userInfo.value.username}',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, color: darkGrey),
+                              style: TextStyle(color: darkGrey),
                             ),
-                    )),
+                    ),
+
+                    // BIO ---------------------------------------------------------------------
                     verticalSpacer(20),
                     Obx(() => c.isLoading.value
                         ? const Text('...')
@@ -147,6 +242,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
               ),
+
+              // POSTS ---------------------------------------------------------------------------
               verticalSpacer(30),
               Text(
                 'Posts',
@@ -180,5 +277,31 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ),
         ));
+  }
+}
+
+class UserInfo extends StatelessWidget {
+  const UserInfo({
+    super.key,
+    required this.label,
+    required this.count,
+  });
+  final String label;
+  final String count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          count,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+        Text(
+          label,
+          style: TextStyle(color: darkGrey),
+        ),
+      ],
+    );
   }
 }
